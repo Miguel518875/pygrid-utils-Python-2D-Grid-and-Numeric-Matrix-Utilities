@@ -1,21 +1,25 @@
 from __future__ import annotations
-from math import sqrt
 from typing import Literal, Iterator, Any, Union, Tuple, List, Dict
+
 
 class Grid:
     """
-    A generic 2D grid container. Supports iteration, reading, editing, and adjacency queries.
+    Generic 2D grid container for strings.
+    Supports iteration, reading, editing, and adjacency queries.
     """
-    def __new__(cls, grid_data: Union[List[List[str]], Grid]) -> object:
+
+    def __new__(cls, grid_data: Union[List[List[str]], Grid, NumericGrid]) -> object:
         return object.__new__(cls)
-        
-    def __init__(self, grid_data: Union[List[List[str]], Grid]) -> None:
+
+    def __init__(self, grid_data: Union[List[List[str]], Grid, NumericGrid]) -> None:
         if isinstance(grid_data, Grid):
             grid_data = grid_data.grid
+        elif isinstance(grid_data, NumericGrid):
+            grid_data = [[str(cell) for cell in row] for row in grid_data.matrix]
         self.grid: List[List[str]] = grid_data
 
-    def __call__(self, coordinates: Tuple[int, int]) -> str:
-        return self.read(coordinates)
+    def __call__(self, coords: Tuple[int, int]) -> str:
+        return self.read(coords)
 
     def __iter__(self) -> Iterator[str]:
         for row in self.grid:
@@ -35,8 +39,8 @@ class Grid:
         return hash(self.freeze())
 
     def __eq__(self, other: Union[Grid, List[List[str]]]) -> bool:
-        other = Grid(other)  # pyright: ignore[reportAssignmentType] # allow comparison to raw list
-        return self.freeze() == other.freeze() # pyright: ignore[reportAttributeAccessIssue]
+        other = Grid(other)  # allow comparison to raw list
+        return self.freeze() == other.freeze()
 
     def __ne__(self, other: Grid) -> bool:
         return not self.__eq__(other)
@@ -48,12 +52,17 @@ class Grid:
             raise IndexError("Coordinates must be positive integers starting from 1.")
         return -x, -y
 
-    def edit(self, coords: Tuple[int, int], new_value: str, mode: Literal['edit', 'return edited'] = 'edit') -> Union[None, List[List[str]]]:
+    def edit(
+        self,
+        coords: Tuple[int, int],
+        new_value: str,
+        mode: Literal['edit', 'return edited'] = 'edit'
+    ) -> Union[None, List[List[str]]]:
         x, y = self._normalize_coords(coords)
         if mode == 'edit':
             self.grid[y][x] = new_value
         else:
-            grid_copy = self.grid.copy()
+            grid_copy = [row.copy() for row in self.grid]
             grid_copy[y][x] = new_value
             return grid_copy
 
@@ -62,19 +71,25 @@ class Grid:
         return self.grid[y][x]
 
     def find_all(self, value: str) -> Tuple[Tuple[int, int], ...]:
-        """
-        Returns all coordinates (1-indexed) where `value` appears.
-        """
-        matches = []
-        for i, row in enumerate(self.grid):
-            for j, cell in enumerate(row):
-                if cell == value:
-                    matches.append((j + 1, i + 1))
+        """Return all coordinates (1-indexed) where `value` appears."""
+        matches = [
+            (j + 1, i + 1)
+            for i, row in enumerate(self.grid)
+            for j, cell in enumerate(row)
+            if cell == value
+        ]
         return tuple(matches)
 
-    def adjacents(self, coords: Tuple[int, int], location: int = 0, mode: Literal['coordinates', 'value'] = 'value') -> Union[Tuple[int, int], str, Tuple[Union[Tuple[int,int], str], ...]]:
+    def adjacents(
+        self,
+        coords: Tuple[int, int],
+        location: int = 0,
+        mode: Literal['coordinates', 'value'] = 'value'
+    ) -> Union[Tuple[int, int], str, Tuple[Any, ...]]:
         """
-        Returns adjacent cells of a coordinate. Location is from numpad (1-9, skip 5).
+        Return adjacent cells of a coordinate. 
+        Location follows numpad layout (1-9, skip 5). 
+        If location=0, return all neighbors as a tuple.
         """
         deltas = {
             1: (-1, 1), 2: (0, 1), 3: (1, 1),
@@ -88,24 +103,35 @@ class Grid:
             nx, ny = x + dx, y + dy
             return (-nx, -ny) if mode == 'coordinates' else self.grid[ny][nx]
         else:
-            return tuple(self.adjacents(coords, i, mode) for i in range(1, 10) if i != 5) # pyright: ignore[reportReturnType]
+            return tuple(self.adjacents(coords, i, mode) for i in range(1, 10) if i != 5)
 
     def to_dict(self) -> Dict[Tuple[int, int], str]:
+        """Return a dict representation with coordinates as keys."""
         return {(j, i): cell for i, row in enumerate(self.grid) for j, cell in enumerate(row)}
 
     def freeze(self) -> Tuple[Tuple[str, ...], ...]:
+        """Return an immutable tuple of tuples representation."""
         return tuple(tuple(row) for row in self.grid)
 
     @classmethod
-    def from_list(cls, grid_data: List[List[str]]) -> Grid:
+    def new(cls, grid_data: Union[List[List[str]], Grid]) -> Grid:
         return cls(grid_data)
 
 
 class NumericGrid(Grid):
     """
-    A numeric 2D grid with arithmetic operations.
+    Numeric 2D grid with arithmetic operations.
     """
-    def __init__(self, matrix: List[List[float]]) -> None:
+
+    def __new__(cls, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]):
+        return object.__new__(cls)
+
+    def __init__(self, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]):
+        if isinstance(matrix, Grid):
+            matrix = [[float(cell) for cell in row] for row in matrix.grid]
+        elif isinstance(matrix, NumericGrid):
+            matrix = [row.copy() for row in matrix.matrix]
+
         super().__init__([[str(c) for c in row] for row in matrix])
         self.matrix: List[List[float]] = matrix
 
@@ -134,5 +160,9 @@ class NumericGrid(Grid):
         return min(min(row) for row in self.matrix)
 
     def increment_neighbors(self, coords: Tuple[int, int], amount: float = 1) -> None:
-        for nx, ny in self.adjacents(coords, mode='coordinates'):  # pyright: ignore[reportGeneralTypeIssues, reportAssignmentType]
-            self.matrix[ny][nx] += amount # type: ignore
+        for nx, ny in self.adjacents(coords, mode='coordinates'):  
+            self.matrix[ny][nx] += amount  # type: ignore
+
+    @classmethod
+    def new(cls, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]) -> NumericGrid:
+        return cls(matrix)
