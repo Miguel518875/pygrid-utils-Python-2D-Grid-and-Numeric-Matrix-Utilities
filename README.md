@@ -27,16 +27,10 @@ You can clone the repository and use it locally:
 git clone https://github.com/Miguel518875/pygrid-utils.git
 cd pygrid-utils
 Then import in Python:
-
-python
-Copiar código
-from pygrid_utils import Grid, NumericGrid
-(Note: not yet published to PyPI.)
-
+```
 Usage Examples
 Grid Example
-python
-Copiar código
+```python
 from pygrid_utils import Grid
 
 grid = Grid([
