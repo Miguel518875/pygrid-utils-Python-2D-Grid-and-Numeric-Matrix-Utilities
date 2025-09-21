@@ -1,162 +1,160 @@
-from __future__ import annotations
-from typing import Any, Iterator, Literal
+from typing import Any, List, Tuple, Dict, Union, Iterator
 
-class Map():
-    class _Cell():
-        def __init__(self, map_obj: Map, coordinate: tuple[int, int], value: object):
-            self.y, self.x = coordinate
-            self.map_obj = map_obj
-            self.value = value
-            self.coord = coordinate
-        
+class Map:
+    class _Cell:
+        def __init__(self, mapa: 'Map', coordenada: Tuple[int, int], valor: Any):
+            self.y, self.x = coordenada
+            self.mapa = mapa
+            self.valor = valor
+            self.cord = coordenada
+
         @property
-        def value(self) -> object:
-            return self._value
-        
-        @value.setter
-        def value(self, new_value: object) -> None:
-            self.map_obj.map[self.y][self.x] = new_value  # pyright: ignore[reportAttributeAccessIssue]
-            self._value = new_value
-        
-        def edit(self, new_value: object) -> None:
-            self.value = new_value
-            
+        def valor(self) -> Any:
+            return self._valor
+
+        @valor.setter
+        def valor(self, novo_valor: Any) -> None:
+            self.mapa.map[self.y][self.x] = novo_valor
+            self._valor = novo_valor
+
+        def edit(self, novo_valor: Any) -> None:
+            self.valor = novo_valor
+
         @staticmethod
-        def unformat(map_data: list[list[Any]], coordinate: tuple[int, int]) -> tuple[int, int]:
-            col, visual_row = coordinate
-            x = col - 1
-            y = len(map_data) - visual_row
+        def desformatar(mapa: List[List[Any]], coordenada: Tuple[int, int]) -> Tuple[int, int]:
+            coluna, linha_visual = coordenada
+            x = coluna - 1
+            y = len(mapa) - linha_visual
             return (y, x)
 
         @staticmethod
-        def format(map_data: list[list[Any]], coordinate: tuple[int, int]) -> tuple[int, int]:
-            y, x = coordinate
-            visual_row = len(map_data) - y
-            col = x + 1
-            return (col, visual_row)
+        def formatar(mapa: List[List[Any]], coordenada: Tuple[int, int]) -> Tuple[int, int]:
+            y, x = coordenada
+            linha_visual = len(mapa) - y
+            coluna = x + 1
+            return (coluna, linha_visual)
 
-    
-    def __init__(self, map_data: list[list[Any]] | Map | tuple[tuple[Any, ...], ...]) -> None:
-        if not isinstance(map_data, list):
-            map_data = list(map_data)
-        self.map = map_data
-        coords = dict()
-        for i, line in enumerate(map_data):
+    def __init__(self, mapa: Union[List[List[Any]], 'Map', Tuple[Tuple[Any, ...], ...]]) -> None:
+        if isinstance(mapa, Map):
+            mapa = mapa.map
+        elif not isinstance(mapa, list):
+            mapa = list(mapa)
+        self.map: List[List[Any]] = mapa
+        coords: Dict[Tuple[int, int], Map._Cell] = {}
+        for i, line in enumerate(mapa):
             for j, cell in enumerate(line):
                 coords[(i, j)] = Map._Cell(self, (i, j), cell)
-        self.cells = coords
-        self.cells: dict[tuple[int, int], Map._Cell]
-        
+        self.cords = coords
+
     def __iter__(self) -> Iterator[Any]:
         for line in self.map:
             for cell in line:
                 yield cell
-                
-    def __getitem__(self, line: int) -> list[Any]:
+
+    def __getitem__(self, line: int) -> List[Any]:
         return self.map[line]
-    
+
     def __str__(self) -> str:
-        result = []
+        resultado = []
         for line in self.map:
             for cell in line:
-                result.append(f'"{cell}"')
-            result.append('\n')
-        return ', '.join(result).replace(', \n, ', ',\n')[:-3]
-    
+                resultado.append('"{}"'.format(cell))
+            resultado.append('\n')
+        return ', '.join(resultado).replace(', \n, ', ',\n')[:-3]
+
     def __repr__(self) -> str:
         return str(self)
-    
-    def __call__(self, value) -> object:
-        coordinates = []
+
+    def __call__(self, valor: Any) -> Any:
+        coordenadas = []
         for i, line in enumerate(self.map):
             for j, cell in enumerate(line):
-                if cell == value:
-                    coordinates.append(Map._Cell.format(self.map, (i, j)))
-        if len(coordinates) == 1:
-            return coordinates[0]
-        return tuple(coordinates)
-        
-    def __eq__(self, other) -> bool:
+                if cell == valor:
+                    coordenadas.append(Map._Cell.formatar(self.map, (i, j)))
+        if len(coordenadas) == 1:
+            return coordenadas[0]
+        return tuple(coordenadas)
+
+    def __eq__(self, other: Any) -> bool:
         other = Map(other)
         return self.freeze() == other.freeze()
-    
-    def __ne__(self, other) -> bool:
+
+    def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
-    
-    def __gt__(self, other) -> bool:
+
+    def __gt__(self, other: Any) -> bool:
         other = Map(other)
         return self.freeze() > other.freeze()
-    
-    def __ge__(self, other) -> bool:
+
+    def __ge__(self, other: Any) -> bool:
         return self.__eq__(other) or self.__gt__(other)
-    
-    def __lt__(self, other) -> bool:
+
+    def __lt__(self, other: Any) -> bool:
         return not self.__gt__(other) and not self.__eq__(other)
-    
-    def __le__(self, other) -> bool:
+
+    def __le__(self, other: Any) -> bool:
         return not self.__gt__(other)
-    
+
     def show(self) -> None:
         for line in self.map:
             print(line)
-            
-    def to_dict(self) -> dict[tuple[int, int], object]:
-        dictionary = dict()
+
+    def to_dict(self) -> Dict[Tuple[int, int], Any]:
+        dicionario = {}
         for i, line in enumerate(self.map):
             for j, cell in enumerate(line):
-                dictionary[(j, i)] = cell
-        return dictionary
-                
-    def read(self, coordinate: tuple[int, int]) -> object:
-        y, x = Map._Cell.unformat(self.map, coordinate)
+                dicionario[(j, i)] = cell
+        return dicionario
+
+    def read(self, coordenadas: Tuple[int, int]) -> Any:
+        y, x = Map._Cell.desformatar(self.map, coordenadas)
         return self.map[y][x]
-    
-    def edit(self, coordinate: tuple[int, int], new_value: object, mode: Literal['edit', 'return edited']='edit') -> object:
-        if mode == 'edit':
-            self.cells[(Map._Cell.unformat(self.map, coordinate))].edit(new_value)
+
+    def edit(self, coordenadas: Tuple[int, int], novo_valor: Any,
+             mode: str = 'editar') -> Any:
+        if mode == 'editar':
+            self.cords[Map._Cell.desformatar(self.map, coordenadas)].edit(novo_valor)
         else:
-            copy = self.cells.copy()
-            self.cells[(Map._Cell.unformat(self.map, coordinate))].edit(new_value)
-            copy2 = self.cells.copy()
-            self.cells = copy.copy()
+            copy_cords = self.cords.copy()
+            self.cords[Map._Cell.desformatar(self.map, coordenadas)].edit(novo_valor)
+            copy2 = self.cords.copy()
+            self.cords = copy_cords.copy()
             return copy2
-        
-    def neighbors(self, coordinate: tuple[int, int], neighbor: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]=0, mode: Literal['value', 'coordinate']='value') -> object:
-        offsets = {
+
+    def arredores(self, coordenadas: Tuple[int, int],
+                  vizinho: int = 0,
+                  mode: str = 'valor') -> Any:
+        deslocamentos = {
             1: (-1, -1), 2: (-1, 0), 3: (-1, 1),
             4: (0, -1),             6: (0, 1),
             7: (1, -1), 8: (1, 0), 9: (1, 1)
         }
-        coordinate = Map._Cell.unformat(self.map, coordinate)
-        if neighbor:
-            offset = offsets[neighbor]
+        coordenadas = Map._Cell.desformatar(self.map, coordenadas)
+        if vizinho:
+            deslocamento = deslocamentos[vizinho]
             try:
-                self.map[coordinate[0]][coordinate[1]]
+                self.map[coordenadas[0]][coordenadas[1]]
             except IndexError:
-                raise IndexError('Coordinate out of map')
-            if mode == 'value':
-                coord = []
-                coord.append(coordinate[0] + offset[0])
-                coord.append(coordinate[1] + offset[1])
-                return self.map[coord[0]][coord[1]]
-            else:
-                coord = []
-                coord.append(coordinate[0] + offset[0])
-                coord.append(coordinate[1] + offset[1])
-                return tuple(Map._Cell.format(self.map, coord))
-        else:
-            results = []
-            for i in range(1, 10):
-                if i == 5: continue
-                try:
-                    results.append(self.neighbors(Map._Cell.format(self.map, coordinate), i, mode))
-                except IndexError:
-                    continue
-            return tuple(results)
+                raise IndexError('Coordinate out of map bounds')
+            coordenada = [coordenadas[0] + deslocamento[0],
+                          coordenadas[1] + deslocamento[1]]
+            if mode == 'valor':
+                return self.map[coordenada[0]][coordenada[1]]
+            return tuple(Map._Cell.formatar(self.map, coordenada))
+        valores = []
+        for i in range(1, 10):
+            if i == 5:
+                continue
+            try:
+                valores.append(self.arredores(Map._Cell.formatar(self.map, coordenadas), i, mode))
+            except IndexError:
+                continue
+        return tuple(valores)
 
-    def freeze(self) -> tuple[tuple[object, ...], ...]:
+    def freeze(self) -> Tuple[Tuple[Any, ...], ...]:
         return tuple(tuple(cell for cell in line) for line in self.map)
 
-# Example usage
+
+# Example
 a = Map([['o' for _ in range(10)] for _ in range(10)])
 print(str(a))
