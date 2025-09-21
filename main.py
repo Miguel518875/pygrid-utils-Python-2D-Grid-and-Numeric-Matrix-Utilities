@@ -1,168 +1,162 @@
 from __future__ import annotations
-from typing import Literal, Iterator, Any, Union, Tuple, List, Dict
+from typing import Any, Iterator, Literal
 
+class Map():
+    class _Cell():
+        def __init__(self, map_obj: Map, coordinate: tuple[int, int], value: object):
+            self.y, self.x = coordinate
+            self.map_obj = map_obj
+            self.value = value
+            self.coord = coordinate
+        
+        @property
+        def value(self) -> object:
+            return self._value
+        
+        @value.setter
+        def value(self, new_value: object) -> None:
+            self.map_obj.map[self.y][self.x] = new_value  # pyright: ignore[reportAttributeAccessIssue]
+            self._value = new_value
+        
+        def edit(self, new_value: object) -> None:
+            self.value = new_value
+            
+        @staticmethod
+        def unformat(map_data: list[list[Any]], coordinate: tuple[int, int]) -> tuple[int, int]:
+            col, visual_row = coordinate
+            x = col - 1
+            y = len(map_data) - visual_row
+            return (y, x)
 
-class Grid:
-    """
-    Generic 2D grid container for strings.
-    Supports iteration, reading, editing, and adjacency queries.
-    """
+        @staticmethod
+        def format(map_data: list[list[Any]], coordinate: tuple[int, int]) -> tuple[int, int]:
+            y, x = coordinate
+            visual_row = len(map_data) - y
+            col = x + 1
+            return (col, visual_row)
 
-    def __new__(cls, grid_data: Union[List[List[str]], Grid, NumericGrid]) -> object:
-        return object.__new__(cls)
-
-    def __init__(self, grid_data: Union[List[List[str]], Grid, NumericGrid]) -> None:
-        if isinstance(grid_data, Grid):
-            grid_data = grid_data.grid
-        elif isinstance(grid_data, NumericGrid):
-            grid_data = [[str(cell) for cell in row] for row in grid_data.matrix]
-        self.grid: List[List[str]] = grid_data
-
-    def __call__(self, coords: Tuple[int, int]) -> str:
-        return self.read(coords)
-
-    def __iter__(self) -> Iterator[str]:
-        for row in self.grid:
-            for cell in row:
+    
+    def __init__(self, map_data: list[list[Any]] | Map | tuple[tuple[Any, ...], ...]) -> None:
+        if not isinstance(map_data, list):
+            map_data = list(map_data)
+        self.map = map_data
+        coords = dict()
+        for i, line in enumerate(map_data):
+            for j, cell in enumerate(line):
+                coords[(i, j)] = Map._Cell(self, (i, j), cell)
+        self.cells = coords
+        self.cells: dict[tuple[int, int], Map._Cell]
+        
+    def __iter__(self) -> Iterator[Any]:
+        for line in self.map:
+            for cell in line:
                 yield cell
-
-    def __getitem__(self, row: int) -> List[str]:
-        return self.grid[row]
-
-    def __repr__(self) -> str:
-        return str(self.grid)
-
+                
+    def __getitem__(self, line: int) -> list[Any]:
+        return self.map[line]
+    
     def __str__(self) -> str:
-        return '"' + '", "'.join(cell for row in self.grid for cell in row) + '"'
-
-    def __hash__(self) -> int:
-        return hash(self.freeze())
-
-    def __eq__(self, other: Union[Grid, List[List[str]]]) -> bool:
-        other = Grid(other)  # allow comparison to raw list
+        result = []
+        for line in self.map:
+            for cell in line:
+                result.append(f'"{cell}"')
+            result.append('\n')
+        return ', '.join(result).replace(', \n, ', ',\n')[:-3]
+    
+    def __repr__(self) -> str:
+        return str(self)
+    
+    def __call__(self, value) -> object:
+        coordinates = []
+        for i, line in enumerate(self.map):
+            for j, cell in enumerate(line):
+                if cell == value:
+                    coordinates.append(Map._Cell.format(self.map, (i, j)))
+        if len(coordinates) == 1:
+            return coordinates[0]
+        return tuple(coordinates)
+        
+    def __eq__(self, other) -> bool:
+        other = Map(other)
         return self.freeze() == other.freeze()
-
-    def __ne__(self, other: Grid) -> bool:
+    
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
-
-    # 🔹 Helper: normalize 1-indexed coordinates for internal access
-    def _normalize_coords(self, coords: Tuple[int, int]) -> Tuple[int, int]:
-        x, y = coords
-        if x < 1 or y < 1:
-            raise IndexError("Coordinates must be positive integers starting from 1.")
-        return -x, -y
-
-    def edit(
-        self,
-        coords: Tuple[int, int],
-        new_value: str,
-        mode: Literal['edit', 'return edited'] = 'edit'
-    ) -> Union[None, List[List[str]]]:
-        x, y = self._normalize_coords(coords)
+    
+    def __gt__(self, other) -> bool:
+        other = Map(other)
+        return self.freeze() > other.freeze()
+    
+    def __ge__(self, other) -> bool:
+        return self.__eq__(other) or self.__gt__(other)
+    
+    def __lt__(self, other) -> bool:
+        return not self.__gt__(other) and not self.__eq__(other)
+    
+    def __le__(self, other) -> bool:
+        return not self.__gt__(other)
+    
+    def show(self) -> None:
+        for line in self.map:
+            print(line)
+            
+    def to_dict(self) -> dict[tuple[int, int], object]:
+        dictionary = dict()
+        for i, line in enumerate(self.map):
+            for j, cell in enumerate(line):
+                dictionary[(j, i)] = cell
+        return dictionary
+                
+    def read(self, coordinate: tuple[int, int]) -> object:
+        y, x = Map._Cell.unformat(self.map, coordinate)
+        return self.map[y][x]
+    
+    def edit(self, coordinate: tuple[int, int], new_value: object, mode: Literal['edit', 'return edited']='edit') -> object:
         if mode == 'edit':
-            self.grid[y][x] = new_value
+            self.cells[(Map._Cell.unformat(self.map, coordinate))].edit(new_value)
         else:
-            grid_copy = [row.copy() for row in self.grid]
-            grid_copy[y][x] = new_value
-            return grid_copy
-
-    def read(self, coords: Tuple[int, int]) -> str:
-        x, y = self._normalize_coords(coords)
-        return self.grid[y][x]
-
-    def find_all(self, value: str) -> Tuple[Tuple[int, int], ...]:
-        """Return all coordinates (1-indexed) where `value` appears."""
-        matches = [
-            (j + 1, i + 1)
-            for i, row in enumerate(self.grid)
-            for j, cell in enumerate(row)
-            if cell == value
-        ]
-        return tuple(matches)
-
-    def adjacents(
-        self,
-        coords: Tuple[int, int],
-        location: int = 0,
-        mode: Literal['coordinates', 'value'] = 'value'
-    ) -> Union[Tuple[int, int], str, Tuple[Any, ...]]:
-        """
-        Return adjacent cells of a coordinate. 
-        Location follows numpad layout (1-9, skip 5). 
-        If location=0, return all neighbors as a tuple.
-        """
-        deltas = {
-            1: (-1, 1), 2: (0, 1), 3: (1, 1),
-            4: (-1, 0), 6: (1, 0),
-            7: (-1, -1), 8: (0, -1), 9: (1, -1)
+            copy = self.cells.copy()
+            self.cells[(Map._Cell.unformat(self.map, coordinate))].edit(new_value)
+            copy2 = self.cells.copy()
+            self.cells = copy.copy()
+            return copy2
+        
+    def neighbors(self, coordinate: tuple[int, int], neighbor: Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]=0, mode: Literal['value', 'coordinate']='value') -> object:
+        offsets = {
+            1: (-1, -1), 2: (-1, 0), 3: (-1, 1),
+            4: (0, -1),             6: (0, 1),
+            7: (1, -1), 8: (1, 0), 9: (1, 1)
         }
-
-        x, y = self._normalize_coords(coords)
-        if location:
-            dx, dy = deltas[location]
-            nx, ny = x + dx, y + dy
-            return (-nx, -ny) if mode == 'coordinates' else self.grid[ny][nx]
+        coordinate = Map._Cell.unformat(self.map, coordinate)
+        if neighbor:
+            offset = offsets[neighbor]
+            try:
+                self.map[coordinate[0]][coordinate[1]]
+            except IndexError:
+                raise IndexError('Coordinate out of map')
+            if mode == 'value':
+                coord = []
+                coord.append(coordinate[0] + offset[0])
+                coord.append(coordinate[1] + offset[1])
+                return self.map[coord[0]][coord[1]]
+            else:
+                coord = []
+                coord.append(coordinate[0] + offset[0])
+                coord.append(coordinate[1] + offset[1])
+                return tuple(Map._Cell.format(self.map, coord))
         else:
-            return tuple(self.adjacents(coords, i, mode) for i in range(1, 10) if i != 5)
+            results = []
+            for i in range(1, 10):
+                if i == 5: continue
+                try:
+                    results.append(self.neighbors(Map._Cell.format(self.map, coordinate), i, mode))
+                except IndexError:
+                    continue
+            return tuple(results)
 
-    def to_dict(self) -> Dict[Tuple[int, int], str]:
-        """Return a dict representation with coordinates as keys."""
-        return {(j, i): cell for i, row in enumerate(self.grid) for j, cell in enumerate(row)}
+    def freeze(self) -> tuple[tuple[object, ...], ...]:
+        return tuple(tuple(cell for cell in line) for line in self.map)
 
-    def freeze(self) -> Tuple[Tuple[str, ...], ...]:
-        """Return an immutable tuple of tuples representation."""
-        return tuple(tuple(row) for row in self.grid)
-
-    @classmethod
-    def new(cls, grid_data: Union[List[List[str]], Grid]) -> Grid:
-        return cls(grid_data)
-
-
-class NumericGrid(Grid):
-    """
-    Numeric 2D grid with arithmetic operations.
-    """
-
-    def __new__(cls, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]):
-        return object.__new__(cls)
-
-    def __init__(self, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]):
-        if isinstance(matrix, Grid):
-            matrix = [[float(cell) for cell in row] for row in matrix.grid]
-        elif isinstance(matrix, NumericGrid):
-            matrix = [row.copy() for row in matrix.matrix]
-
-        super().__init__([[str(c) for c in row] for row in matrix])
-        self.matrix: List[List[float]] = matrix
-
-    def __iter__(self) -> Iterator[float]:
-        for row in self.matrix:
-            for cell in row:
-                yield cell
-
-    def __getitem__(self, row: int) -> List[float]:
-        return self.matrix[row]
-
-    def read(self, coords: Tuple[int, int]) -> float:
-        return float(super().read(coords))
-
-    def sum_coords(self, *coords: Tuple[int, int]) -> float:
-        return sum(self.read(self._normalize_coords(c)) for c in coords)
-
-    def sum_diagonal(self) -> float:
-        size = len(self.matrix)
-        return sum(self.read((i, i)) for i in range(size))
-
-    def max_value(self) -> float:
-        return max(max(row) for row in self.matrix)
-
-    def min_value(self) -> float:
-        return min(min(row) for row in self.matrix)
-
-    def increment_neighbors(self, coords: Tuple[int, int], amount: float = 1) -> None:
-        for nx, ny in self.adjacents(coords, mode='coordinates'):  
-            self.matrix[ny][nx] += amount  # type: ignore
-
-    @classmethod
-    def new(cls, matrix: Union[List[List[float]], List[List[int]], Grid, NumericGrid]) -> NumericGrid:
-        return cls(matrix)
+# Example usage
+a = Map([['o' for _ in range(10)] for _ in range(10)])
+print(str(a))
